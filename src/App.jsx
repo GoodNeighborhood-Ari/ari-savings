@@ -30,11 +30,43 @@ const getYear = (s) => new Date(s + "T00:00:00").getFullYear();
 const currentMonth = new Date().getMonth();
 const currentYear = new Date().getFullYear();
 
-// Password hash (simple but functional)
-const PASSWORD_HASH = "Bask3tballer_@ri0322bal0ney2";
+// ── Supabase config (injected via Vite env variables) ──
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const PASSWORD_HASH = import.meta.env.VITE_APP_PASSWORD;
 
-async function load(key, fb) { try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : fb; } catch { return fb; } }
-async function save(key, v) { try { await window.storage.set(key, JSON.stringify(v)); } catch(e) { console.error(e); } }
+async function sbLoad(key, fallback) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/budget_data?key=eq.${key}&select=value`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+    const rows = await res.json();
+    if (rows && rows.length > 0) return JSON.parse(rows[0].value);
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function sbSave(key, value) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/budget_data`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() }),
+    });
+  } catch (e) {
+    console.error("Supabase save error:", e);
+  }
+}
 
 function parseChaseCSV(text) {
   const lines = text.trim().split("\n");
@@ -102,9 +134,8 @@ function PasswordGate({ onUnlock }) {
       <div style={{
         background:"var(--s1)", borderRadius:20, padding:"40px 36px", width:"100%", maxWidth:360,
         textAlign:"center", boxShadow:"0 24px 64px rgba(0,0,0,0.4)",
-        animation:"fadeIn 0.4s ease",
+        animation: shake ? "shake 0.4s ease" : "fadeIn 0.4s ease",
         border:"1px solid var(--bd)",
-        ...(shake ? {animation:"shake 0.4s ease"} : {})
       }}>
         <div style={{fontSize:34, marginBottom:8}}>🔐</div>
         <h2 style={{margin:"0 0 6px", fontFamily:"var(--fd)", fontSize:20, fontWeight:700, color:"var(--tx)"}}>Budget Dashboard</h2>
@@ -575,7 +606,7 @@ function RecurringForm({ onSubmit, initial }) {
 /* ── Savings Config Form ── */
 function SavingsConfigForm({ config, onSave, goals }) {
   const [amountPerPaycheck, setAmountPerPaycheck] = useState(config?.amountPerPaycheck || "");
-  const [splitMode, setSplitMode] = useState(config?.splitMode || "even"); // even | manual
+  const [splitMode, setSplitMode] = useState(config?.splitMode || "even");
   const [splits, setSplits] = useState(config?.splits || {});
 
   const go = () => {
@@ -624,22 +655,21 @@ function BonusForm({ onSubmit }) {
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const [date, setDate] = useState(todayStr());
-  const [applyToGoal, setApplyToGoal] = useState(false);
 
   const go = () => {
     if (!amount || isNaN(parseFloat(amount))) return;
-    onSubmit({ id: uid(), type:"income", amount: parseFloat(amount), description: desc || "Bonus / One-time income", date, category:"other", isBonus: true, applyToGoal });
+    onSubmit({ id: uid(), type:"income", amount: parseFloat(amount), description: desc || "Bonus / One-time income", date, category:"other", isBonus: true });
   };
 
   return (
     <div>
       <p style={{margin:"0 0 14px",fontSize:12,color:"var(--tx2)",lineHeight:1.6}}>
-        Record one-time income like cube recovery, gifts, side hustles, etc. This gets added to your working money.
+        Record one-time income like bonuses, gifts, side hustles, etc.
       </p>
       <label style={lbl}>Amount</label>
       <input type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" style={{...inp,marginBottom:10}} autoFocus/>
       <label style={lbl}>Description</label>
-      <input type="text" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g., Cube competition winnings, Birthday gift" style={{...inp,marginBottom:10}}/>
+      <input type="text" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g., Birthday gift, Side project" style={{...inp,marginBottom:10}}/>
       <label style={lbl}>Date Received</label>
       <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp,marginBottom:16}}/>
       <button onClick={go} style={pBtn}>Add Bonus Income</button>
@@ -650,20 +680,11 @@ function BonusForm({ onSubmit }) {
 /* ── Working Money Summary Card ── */
 function WorkingMoneyCard({ income, recurringExpenses, savingsConfig, mTxns, vMonth, vYear, goals, onEditSavings, onAddBonus }) {
   const totalRecurring = recurringExpenses.reduce((s, e) => s + e.amount, 0);
-
-  // Monthly savings = 2 paychecks/month × per-paycheck amount
   const monthlySavings = (savingsConfig?.amountPerPaycheck || 0) * 2;
-
-  // Bonus income this month
   const bonusIncome = mTxns.filter(t => t.isBonus && t.type === "income").reduce((s,t) => s + t.amount, 0);
-
-  // Discretionary (working money) = income - recurring - savings + bonus
   const workingMoney = income - totalRecurring - monthlySavings + bonusIncome;
-
-  // Discretionary spent (non-recurring expenses)
   const discretionarySpent = mTxns.filter(t => t.type === "expense" && !t.isRecurring).reduce((s,t) => s + t.amount, 0);
   const workingLeft = workingMoney - discretionarySpent;
-
   const pct = workingMoney > 0 ? Math.min((discretionarySpent / workingMoney) * 100, 100) : 0;
 
   return (
@@ -686,14 +707,12 @@ function WorkingMoneyCard({ income, recurringExpenses, savingsConfig, mTxns, vMo
         </div>
       </div>
 
-      {/* Progress bar */}
       <div style={{background:"var(--s0)",borderRadius:6,height:8,overflow:"hidden",marginBottom:12}}>
         <div style={{height:"100%",borderRadius:6,width:`${pct}%`,
           background: pct > 90 ? "linear-gradient(90deg,var(--dg),#c45)" : pct > 70 ? "linear-gradient(90deg,var(--wn),var(--ac))" : "linear-gradient(90deg,var(--sc),#6bc99b)",
           transition:"width 0.8s ease"}}/>
       </div>
 
-      {/* Breakdown rows */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:11.5}}>
         <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
           <span style={{color:"var(--tx2)"}}>Total Income</span>
@@ -723,7 +742,6 @@ function WorkingMoneyCard({ income, recurringExpenses, savingsConfig, mTxns, vMo
         </div>
       </div>
 
-      {/* Savings goal allocation */}
       {goals.length > 0 && monthlySavings > 0 && (
         <div style={{marginTop:12,padding:"10px 12px",background:"var(--s0)",borderRadius:9}}>
           <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7}}>Savings Allocation This Month</div>
@@ -787,10 +805,9 @@ export default function App() {
   const [selCat,setSelCat]=useState(null);
   const [vMonth,setVMonth]=useState(currentMonth);
   const [vYear,setVYear]=useState(currentYear);
-  const [txnSort, setTxnSort] = useState("date"); // date | amount | alpha
+  const [txnSort, setTxnSort] = useState("date");
   const fRef=useRef();
 
-  // Check session unlock
   useEffect(() => {
     const sess = sessionStorage.getItem("bd_unlocked");
     if (sess === "1") setUnlocked(true);
@@ -805,8 +822,8 @@ export default function App() {
     if (!unlocked) return;
     (async()=>{
       const[t,g,b,i,cb,re,sc]=await Promise.all([
-        load("bt",[]),load("bg",[]),load("bb",4000),load("bi",5500),load("bcb",{}),
-        load("bre",[]),load("bsc",{amountPerPaycheck:0,splitMode:"even",splits:{}})
+        sbLoad("bt",[]),sbLoad("bg",[]),sbLoad("bb",4000),sbLoad("bi",5500),sbLoad("bcb",{}),
+        sbLoad("bre",[]),sbLoad("bsc",{amountPerPaycheck:0,splitMode:"even",splits:{}})
       ]);
       setTxns(t);setGoals(g);setBudget(b);setIncome(i);setCatBudgets(cb);
       setRecurringExpenses(re);setSavingsConfig(sc);
@@ -814,16 +831,15 @@ export default function App() {
     })();
   },[unlocked]);
 
-  const uTxns=v=>{setTxns(v);save("bt",v);};
-  const uGoals=v=>{setGoals(v);save("bg",v);};
-  const uBudget=v=>{setBudget(v);save("bb",v);};
-  const uIncome=v=>{setIncome(v);save("bi",v);};
-  const uCatBudgets=v=>{setCatBudgets(v);save("bcb",v);};
+  const uTxns=v=>{setTxns(v);sbSave("bt",v);};
+  const uGoals=v=>{setGoals(v);sbSave("bg",v);};
+  const uBudget=v=>{setBudget(v);sbSave("bb",v);};
+  const uIncome=v=>{setIncome(v);sbSave("bi",v);};
+  const uCatBudgets=v=>{setCatBudgets(v);sbSave("bcb",v);};
   const setCatBudget=(id,val)=>uCatBudgets({...catBudgets,[id]:val});
-  const uRecurring=v=>{setRecurringExpenses(v);save("bre",v);};
-  const uSavingsConfig=v=>{setSavingsConfig(v);save("bsc",v);};
+  const uRecurring=v=>{setRecurringExpenses(v);sbSave("bre",v);};
+  const uSavingsConfig=v=>{setSavingsConfig(v);sbSave("bsc",v);};
 
-  // Generate virtual recurring txns for the viewed month (not stored, computed)
   const recurringTxnsForMonth = useMemo(() => {
     return recurringExpenses.map(re => ({
       id: `rec_${re.id}_${vYear}_${vMonth}`,
@@ -836,7 +852,6 @@ export default function App() {
     }));
   }, [recurringExpenses, vMonth, vYear]);
 
-  // All txns for the month (real + virtual recurring)
   const mTxns = useMemo(() => {
     const real = txns.filter(t => getMonth(t.date)===vMonth && getYear(t.date)===vYear);
     return [...real, ...recurringTxnsForMonth];
@@ -897,13 +912,11 @@ export default function App() {
   const updGoalCur=(id,v)=>uGoals(goals.map(g=>g.id===id?{...g,current:v}:g));
   const handleEditGoal=g=>{if(g._save){uGoals(goals.map(x=>x.id===g.id?{...x,target:g.target}:x));return;}setEditG(g);setShowGoal(true);};
 
-  // Auto-apply savings to goals when savings config saved
   const handleSaveSavings = (cfg) => {
     uSavingsConfig(cfg);
-    // Update goal current values based on monthly savings allocation
     const monthlySavings = (cfg.amountPerPaycheck || 0) * 2;
     if (monthlySavings > 0 && goals.length > 0) {
-      const updated = goals.map((g, i) => {
+      const updated = goals.map((g) => {
         let alloc = 0;
         if (cfg.splitMode === "manual" && cfg.splits?.[g.id]) {
           alloc = monthlySavings * (parseFloat(cfg.splits[g.id]) / 100);
@@ -934,7 +947,6 @@ export default function App() {
   const prevM=()=>{if(vMonth===0){setVMonth(11);setVYear(vYear-1);}else setVMonth(vMonth-1);};
   const nextM=()=>{if(vMonth===11){setVMonth(0);setVYear(vYear+1);}else setVMonth(vMonth+1);};
 
-  // Sorted + filtered transactions
   const fTxns = useMemo(() => {
     let list = selCat ? mTxns.filter(t=>t.category===selCat) : mTxns;
     if (txnSort === "date") list = [...list].sort((a,b)=>b.date.localeCompare(a.date));
@@ -948,7 +960,14 @@ export default function App() {
   const totalRecurring = recurringExpenses.reduce((s,e)=>s+e.amount,0);
 
   if (!unlocked) return <PasswordGate onUnlock={handleUnlock}/>;
-  if (loading) return <div style={{...root,display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}><span style={{color:"var(--mu)",fontSize:13}}>Loading…</span></div>;
+  if (loading) return (
+    <div style={{...root,display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",flexDirection:"column",gap:12}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Figtree:wght@400;500;600&display=swap');html,body{background:#1e2230!important;margin:0;padding:0;}:root{--s0:#1e2230;--s1:#262b3c;--s2:#2e3448;--bd:#3a4158;--tx:#dde1ed;--tx2:#b4b9cc;--mu:#6d7590;--mu2:#4e5570;--ac:#6aadcf;--ac2:#89c4de;--dg:#d47a7a;--sc:#4dbba8;--wn:#c9b455;--fd:'Sora',sans-serif;--fb:'Figtree',sans-serif}*{box-sizing:border-box}`}</style>
+      <div style={{width:32,height:32,border:"3px solid var(--bd)",borderTopColor:"var(--ac)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <span style={{color:"var(--mu)",fontSize:13,fontFamily:"var(--fb)"}}>Loading your data…</span>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
 
   return (
     <div style={root}>
@@ -995,27 +1014,18 @@ export default function App() {
 
       {/* ═══ DASHBOARD ═══ */}
       {view==="dashboard"&&<>
-        {/* Working Money Card */}
         <WorkingMoneyCard
-          income={income}
-          recurringExpenses={recurringExpenses}
-          savingsConfig={savingsConfig}
-          mTxns={mTxns}
-          vMonth={vMonth}
-          vYear={vYear}
-          goals={goals}
-          onEditSavings={()=>setShowSavings(true)}
-          onAddBonus={()=>setShowBonus(true)}
+          income={income} recurringExpenses={recurringExpenses} savingsConfig={savingsConfig}
+          mTxns={mTxns} vMonth={vMonth} vYear={vYear} goals={goals}
+          onEditSavings={()=>setShowSavings(true)} onAddBonus={()=>setShowBonus(true)}
         />
 
-        {/* Stats */}
         <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
           <StatCard label="Total Budget" accent="var(--tx)"><EditableAmount value={budget} onChange={uBudget}/></StatCard>
           <StatCard label="Spent" sub={`${pct.toFixed(0)}% of budget`} accent={pct>90?"var(--dg)":"var(--ac)"}>{fmt(spent)}</StatCard>
           <StatCard label="Remaining" sub={rem<0?"Over budget":`${(100-pct).toFixed(0)}% left`} accent={rem<0?"var(--dg)":"var(--sc)"}>{fmt(rem)}</StatCard>
         </div>
 
-        {/* Budget progress */}
         <div style={{background:"var(--s1)",borderRadius:11,padding:"13px 16px",marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:7,fontSize:10.5,color:"var(--tx2)"}}>
             <span>Monthly progress</span><span>{fmt(spent)} / {fmt(budget)}</span>
@@ -1033,7 +1043,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Goals */}
         <div style={{marginBottom:18}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <h3 style={sec}>Goals</h3>
@@ -1054,7 +1063,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Charts */}
         <div style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) minmax(250px,1.2fr)",gap:12,marginBottom:16}}>
           <div style={{background:"var(--s1)",borderRadius:13,padding:16}}>
             <h3 style={sec}>Breakdown</h3>
@@ -1082,7 +1090,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* 6-month trend */}
         <div style={{background:"var(--s1)",borderRadius:13,padding:16,marginBottom:16}}>
           <h3 style={sec}>6-Month Trend</h3>
           <ResponsiveContainer width="100%" height={150}>
@@ -1097,7 +1104,6 @@ export default function App() {
           </ResponsiveContainer>
         </div>
 
-        {/* Recent txns */}
         <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
             <h3 style={{...sec,marginBottom:0}}>{selCat?CATEGORIES.find(c=>c.id===selCat)?.label:"Recent Transactions"}</h3>
@@ -1128,9 +1134,7 @@ export default function App() {
 
         <h3 style={sec}>Category Budgets</h3>
         <div style={{fontSize:11.5,color:"var(--tx2)",marginBottom:12}}>
-          {totalAllocated===0
-            ? "Set a budget for each category. Click \"+ set budget\" on any category."
-            : `${fmt(totalAllocated)} allocated · click any amount to edit`}
+          {totalAllocated===0 ? "Set a budget for each category." : `${fmt(totalAllocated)} allocated · click any amount to edit`}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
           {CATEGORIES.filter(c=>c.id!=="savings").map(cat=>(
@@ -1138,7 +1142,6 @@ export default function App() {
               budget={catBudgets[cat.id]||0} onSetBudget={v=>setCatBudget(cat.id,v)} prevSpent={prevCatSpentMap[cat.id]||0}/>
           ))}
         </div>
-
         {totalAllocated>0&&(
           <button onClick={()=>{if(confirm("Clear all category budgets?"))uCatBudgets({});}}
             style={{...chip,background:"transparent",color:"var(--mu)",border:"1px solid var(--bd)",marginTop:16,fontSize:11.5}}>
@@ -1177,16 +1180,13 @@ export default function App() {
           <input type="number" value={income} onChange={e=>uIncome(Number(e.target.value))} style={inp}/>
         </div>
 
-        {/* Recurring Expenses */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <h3 style={{...sec,marginBottom:0}}>Recurring Expenses</h3>
           <button onClick={()=>{setEditRecurring(null);setShowRecurring(true);}} style={{...chip,background:"var(--s1)",fontSize:11.5,padding:"5px 12px"}}>+ Add</button>
         </div>
         <div style={{background:"var(--s1)",borderRadius:11,padding:recurringExpenses.length?12:16,marginBottom:12}}>
           {recurringExpenses.length === 0 ? (
-            <div style={{textAlign:"center",color:"var(--mu)",fontSize:12.5,padding:"8px 0"}}>
-              No recurring expenses yet. Add your mortgage, subscriptions, etc.
-            </div>
+            <div style={{textAlign:"center",color:"var(--mu)",fontSize:12.5,padding:"8px 0"}}>No recurring expenses yet.</div>
           ) : (
             <>
               {recurringExpenses.map(re => {
@@ -1212,7 +1212,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Savings Config */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <h3 style={{...sec,marginBottom:0}}>Savings Auto-Allocation</h3>
           <button onClick={()=>setShowSavings(true)} style={{...chip,background:"#4dbba818",color:"var(--sc)",fontSize:11,padding:"5px 11px",border:"1px solid #4dbba830"}}>Configure</button>
@@ -1231,9 +1230,7 @@ export default function App() {
               <div style={{fontSize:11,color:"var(--mu)"}}>Split mode: {savingsConfig.splitMode === "even" ? "Even split between goals" : "Custom percentages"}</div>
             </div>
           ) : (
-            <div style={{textAlign:"center",color:"var(--mu)",fontSize:12.5}}>
-              Configure how much you auto-save each paycheck and how it splits between your goals.
-            </div>
+            <div style={{textAlign:"center",color:"var(--mu)",fontSize:12.5}}>Configure how much you auto-save each paycheck.</div>
           )}
         </div>
 
@@ -1283,14 +1280,11 @@ export default function App() {
         <button onClick={()=>fRef.current?.click()} style={pBtn}>Choose CSV File</button>
       </Modal>
       <Modal open={showRecurring} onClose={()=>{setShowRecurring(false);setEditRecurring(null);}} title={editRecurring?"Edit Recurring Expense":"Add Recurring Expense"}>
-        <RecurringForm
-          initial={editRecurring}
-          onSubmit={r => {
-            if (editRecurring) uRecurring(recurringExpenses.map(x=>x.id===r.id?r:x));
-            else uRecurring([...recurringExpenses, r]);
-            setShowRecurring(false); setEditRecurring(null);
-          }}
-        />
+        <RecurringForm initial={editRecurring} onSubmit={r => {
+          if (editRecurring) uRecurring(recurringExpenses.map(x=>x.id===r.id?r:x));
+          else uRecurring([...recurringExpenses, r]);
+          setShowRecurring(false); setEditRecurring(null);
+        }}/>
       </Modal>
       <Modal open={showSavings} onClose={()=>setShowSavings(false)} title="Savings Auto-Allocation">
         <SavingsConfigForm config={savingsConfig} onSave={handleSaveSavings} goals={goals}/>
