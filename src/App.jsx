@@ -181,7 +181,7 @@ function EditableAmount({value,onChange,prefix="$",style:xs}) {
     {prefix}{value.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>;
 }
 
-/* ── Goal Card with animated bar ── */
+/* ── Goal Card with animated bars ── */
 function GoalCard({goal,onEdit,onDelete,onUpdateCurrent}) {
   const pct=goal.target>0?Math.min((goal.current/goal.target)*100,100):0;
   const rem=Math.max(goal.target-goal.current,0);
