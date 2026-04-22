@@ -30,6 +30,9 @@ const getYear = (s) => new Date(s + "T00:00:00").getFullYear();
 const currentMonth = new Date().getMonth();
 const currentYear = new Date().getFullYear();
 
+// Password hash (simple but functional)
+const PASSWORD_HASH = "Bask3tballer_@ri0322bal0ney2";
+
 async function load(key, fb) { try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : fb; } catch { return fb; } }
 async function save(key, v) { try { await window.storage.set(key, JSON.stringify(v)); } catch(e) { console.error(e); } }
 
@@ -63,6 +66,73 @@ function parseChaseCSV(text) {
     if (amount<0) txns.push({id:uid(),date,description:desc.slice(0,60),amount:Math.abs(amount),category:cid,type:"expense"});
   }
   return txns;
+}
+
+/* ── Password Gate ── */
+function PasswordGate({ onUnlock }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const attempt = () => {
+    if (pw === PASSWORD_HASH) {
+      onUnlock();
+    } else {
+      setErr(true);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      setTimeout(() => setErr(false), 2000);
+      setPw("");
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"var(--s0)", display:"flex", alignItems:"center", justifyContent:"center",
+      fontFamily:"var(--fb)", padding:24
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Figtree:wght@400;500;600&display=swap');
+        html,body{background:#1e2230!important;margin:0;padding:0;}
+        :root{--s0:#1e2230;--s1:#262b3c;--s2:#2e3448;--bd:#3a4158;--tx:#dde1ed;--tx2:#b4b9cc;--mu:#6d7590;--mu2:#4e5570;--ac:#6aadcf;--ac2:#89c4de;--dg:#d47a7a;--sc:#4dbba8;--wn:#c9b455;--fd:'Sora',sans-serif;--fb:'Figtree',sans-serif}
+        *{box-sizing:border-box}
+        @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+      `}</style>
+      <div style={{
+        background:"var(--s1)", borderRadius:20, padding:"40px 36px", width:"100%", maxWidth:360,
+        textAlign:"center", boxShadow:"0 24px 64px rgba(0,0,0,0.4)",
+        animation:"fadeIn 0.4s ease",
+        border:"1px solid var(--bd)",
+        ...(shake ? {animation:"shake 0.4s ease"} : {})
+      }}>
+        <div style={{fontSize:34, marginBottom:8}}>🔐</div>
+        <h2 style={{margin:"0 0 6px", fontFamily:"var(--fd)", fontSize:20, fontWeight:700, color:"var(--tx)"}}>Budget Dashboard</h2>
+        <p style={{margin:"0 0 24px", fontSize:12.5, color:"var(--mu)"}}>Enter your password to continue</p>
+        <input
+          type="password"
+          value={pw}
+          onChange={e => setPw(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && attempt()}
+          placeholder="Password"
+          autoFocus
+          style={{
+            width:"100%", padding:"10px 14px", borderRadius:10,
+            border:`1px solid ${err ? "var(--dg)" : "var(--bd)"}`,
+            background:"var(--s0)", color:"var(--tx)", fontSize:14,
+            fontFamily:"inherit", outline:"none", marginBottom:12,
+            transition:"border-color 0.2s"
+          }}
+        />
+        {err && <div style={{fontSize:12, color:"var(--dg)", marginBottom:10}}>Incorrect password. Try again.</div>}
+        <button onClick={attempt} style={{
+          width:"100%", padding:"10px 16px", borderRadius:10, border:"none",
+          background:"linear-gradient(135deg,var(--ac),var(--ac2))", color:"#1a1f2e",
+          fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit"
+        }}>Unlock</button>
+      </div>
+    </div>
+  );
 }
 
 /* ── Editable Amount ── */
@@ -130,7 +200,7 @@ function StatCard({label,value,sub,accent,children}) {
     <div style={{background:"var(--s1)",borderRadius:13,padding:"16px 18px",flex:"1 1 155px",minWidth:140}}>
       <div style={{fontSize:10.5,color:"var(--mu)",letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:7,fontWeight:600}}>{label}</div>
       <div style={{fontSize:24,fontWeight:700,color:accent||"var(--tx)",fontFamily:"var(--fd)",letterSpacing:"-0.02em"}}>{children||value}</div>
-      {sub&&<div style={{fontSize:10.5,color:"var(--mu)",marginTop:3}}>{sub}</div>}
+      {sub&&<div style={{fontSize:10.5,color:"var(--tx2)",marginTop:3}}>{sub}</div>}
     </div>
   );
 }
@@ -147,7 +217,7 @@ function DonutChart({data}) {
       </ResponsiveContainer>
       <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",textAlign:"center"}}>
         <div style={{fontSize:18,fontWeight:700,color:"var(--tx)",fontFamily:"var(--fd)"}}>{fmt(total)}</div>
-        <div style={{fontSize:9.5,color:"var(--mu)"}}>total spent</div>
+        <div style={{fontSize:9.5,color:"var(--tx2)"}}>total spent</div>
       </div>
     </div>
   );
@@ -163,7 +233,7 @@ function CatLegend({data,onSelect,selected}) {
         <div style={{width:7,height:7,borderRadius:2,background:d.color,flexShrink:0}}/>
         <div style={{flex:1,fontSize:12,color:"var(--tx)"}}>{d.label}</div>
         <div style={{fontSize:12,fontWeight:600,color:"var(--tx)",fontFamily:"var(--fd)"}}>{fmt(d.value)}</div>
-        <div style={{fontSize:10,color:"var(--mu)",width:30,textAlign:"right"}}>{((d.value/total)*100).toFixed(0)}%</div>
+        <div style={{fontSize:10,color:"var(--tx2)",width:30,textAlign:"right"}}>{((d.value/total)*100).toFixed(0)}%</div>
       </div>
     ))}
   </div>;
@@ -171,17 +241,26 @@ function CatLegend({data,onSelect,selected}) {
 
 function TxnRow({txn,onDelete}) {
   const cat=CATEGORIES.find(c=>c.id===txn.category)||CATEGORIES.at(-1);
+  const isRecurring = txn.isRecurring;
+  const isBonus = txn.isBonus;
   return (
-    <div style={{display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,background:"var(--s1)",marginBottom:4}}>
+    <div style={{display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,background:"var(--s1)",marginBottom:4,
+      border: isRecurring ? "1px solid #6bc99b18" : isBonus ? "1px solid #c9b45518" : "1px solid transparent"
+    }}>
       <div style={{width:30,height:30,borderRadius:7,background:cat.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:cat.color,flexShrink:0}}>{cat.icon}</div>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:12.5,fontWeight:500,color:"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{txn.description||cat.label}</div>
-        <div style={{fontSize:10.5,color:"var(--mu)"}}>{txn.date} · {cat.label}</div>
+        <div style={{fontSize:12.5,fontWeight:500,color:"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+          {txn.description||cat.label}
+          {isRecurring && <span style={{marginLeft:5,fontSize:9.5,color:"#6bc99b",fontWeight:600,padding:"1px 5px",background:"#6bc99b18",borderRadius:4}}>RECURRING</span>}
+          {isBonus && <span style={{marginLeft:5,fontSize:9.5,color:"var(--wn)",fontWeight:600,padding:"1px 5px",background:"#c9b45518",borderRadius:4}}>BONUS</span>}
+        </div>
+        <div style={{fontSize:10.5,color:"var(--tx2)"}}>{txn.date} · {cat.label}</div>
       </div>
       <div style={{fontSize:13,fontWeight:600,color:txn.type==="income"?"#4dbba8":"var(--tx)",fontFamily:"var(--fd)",flexShrink:0}}>
         {txn.type==="income"?"+":"-"}{fmt(txn.amount)}
       </div>
-      <button onClick={()=>onDelete(txn.id)} style={{...tiny,fontSize:13}}>×</button>
+      {!isRecurring && <button onClick={()=>onDelete(txn.id)} style={{...tiny,fontSize:13}}>×</button>}
+      {isRecurring && <div style={{width:22}}/>}
     </div>
   );
 }
@@ -237,9 +316,9 @@ function CatBudgetCard({cat, spent, budget, onSetBudget, prevSpent}) {
         </div>
         <div style={{textAlign:"right"}}>
           <div style={{fontSize:16,fontWeight:700,fontFamily:"var(--fd)",color:over?"var(--dg)":"var(--tx)"}}>{fmt(spent)}</div>
-          <div style={{fontSize:10.5,color:"var(--mu)"}}>
+          <div style={{fontSize:10.5,color:"var(--tx2)"}}>
             {hasBudget ? (
-              <span>of <EditableAmount value={budget} onChange={onSetBudget} style={{fontSize:10.5,color:"var(--mu)"}}/></span>
+              <span>of <EditableAmount value={budget} onChange={onSetBudget} style={{fontSize:10.5,color:"var(--tx2)"}}/></span>
             ) : (
               <button onClick={()=>onSetBudget(spent>0?Math.ceil(spent*1.2/50)*50:200)}
                 style={{...tiny,color:"var(--ac)",fontSize:10.5,padding:0}}>+ set budget</button>
@@ -257,17 +336,17 @@ function CatBudgetCard({cat, spent, budget, onSetBudget, prevSpent}) {
             }}/>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5}}>
-            <span style={{color:over?"var(--dg)":"var(--mu)"}}>
+            <span style={{color:over?"var(--dg)":"var(--tx2)"}}>
               {over ? `${fmt(diff)} over budget` : `${fmt(diff)} remaining`}
             </span>
-            <span style={{fontWeight:600,color:over?"var(--dg)":pct>80?"var(--wn)":"var(--mu)",fontFamily:"var(--fd)"}}>
+            <span style={{fontWeight:600,color:over?"var(--dg)":pct>80?"var(--wn)":"var(--tx2)",fontFamily:"var(--fd)"}}>
               {spent>0||hasBudget ? `${pct.toFixed(0)}%` : ""}
             </span>
           </div>
         </>
       )}
       {!hasBudget && spent > 0 && (
-        <div style={{fontSize:10.5,color:"var(--mu)"}}>No budget set · click to add one</div>
+        <div style={{fontSize:10.5,color:"var(--tx2)"}}>No budget set · click to add one</div>
       )}
     </div>
   );
@@ -284,7 +363,6 @@ function SmartInsights({mTxns, catBudgets, budget, income, txns, vMonth, vYear})
     const dayOfMonth = isCurrentMonth ? today.getDate() : daysInMonth;
     const paceRatio = dayOfMonth > 0 ? (spent / dayOfMonth) * daysInMonth : 0;
 
-    // Budget pace
     if (isCurrentMonth && budget > 0) {
       const onTrackSpend = (budget / daysInMonth) * dayOfMonth;
       const diff = spent - onTrackSpend;
@@ -295,7 +373,6 @@ function SmartInsights({mTxns, catBudgets, budget, income, txns, vMonth, vYear})
       }
     }
 
-    // Category overages
     const catMap = {};
     mTxns.filter(t=>t.type==="expense").forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+t.amount;});
     const overBudget = CATEGORIES.filter(c=>catBudgets[c.id]>0 && (catMap[c.id]||0)>catBudgets[c.id]);
@@ -306,14 +383,12 @@ function SmartInsights({mTxns, catBudgets, budget, income, txns, vMonth, vYear})
       result.push({type:"warning",icon:"↑",title:`${worst.label} over budget`,detail:`You've exceeded your ${worst.label} budget by ${fmt(over)} this month.`});
     }
 
-    // Approaching budget
     const approaching = CATEGORIES.filter(c=>catBudgets[c.id]>0 && !overBudget.includes(c) && (catMap[c.id]||0)/catBudgets[c.id]>0.8);
     if (approaching.length > 0) {
       const names = approaching.map(c=>c.label).join(", ");
       result.push({type:"tip",icon:"◈",title:"Categories near limit",detail:`${names} ${approaching.length===1?"is":"are"} above 80% of budget.`});
     }
 
-    // Biggest category
     const sorted = Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
     if (sorted.length > 0) {
       const topCat = CATEGORIES.find(c=>c.id===sorted[0][0]);
@@ -323,7 +398,6 @@ function SmartInsights({mTxns, catBudgets, budget, income, txns, vMonth, vYear})
       }
     }
 
-    // MOM comparison
     let prevMonth = vMonth-1, prevYear = vYear;
     if(prevMonth<0){prevMonth=11;prevYear--;}
     const prevTxns = txns.filter(t=>getMonth(t.date)===prevMonth&&getYear(t.date)===prevYear&&t.type==="expense");
@@ -341,7 +415,6 @@ function SmartInsights({mTxns, catBudgets, budget, income, txns, vMonth, vYear})
       }
     }
 
-    // Savings rate
     if (income > 0 && spent > 0) {
       const savedRatio = (income - spent) / income;
       if (savedRatio > 0.2) {
@@ -368,7 +441,7 @@ function SmartInsights({mTxns, catBudgets, budget, income, txns, vMonth, vYear})
             <div style={{fontSize:14,color:colors[ins.type],flexShrink:0,paddingTop:1}}>{ins.icon}</div>
             <div>
               <div style={{fontSize:12.5,fontWeight:600,color:"var(--tx)",marginBottom:2}}>{ins.title}</div>
-              <div style={{fontSize:11.5,color:"var(--mu)",lineHeight:1.5}}>{ins.detail}</div>
+              <div style={{fontSize:11.5,color:"var(--tx2)",lineHeight:1.5}}>{ins.detail}</div>
             </div>
           </div>
         ))}
@@ -457,42 +530,289 @@ Respond ONLY with valid JSON (no markdown, no backticks):
               <div style={{fontSize:14,color:colors[ins.type]||colors.info,flexShrink:0,paddingTop:1}}>✦</div>
               <div>
                 <div style={{fontSize:12.5,fontWeight:600,color:"var(--tx)",marginBottom:2}}>{ins.title}</div>
-                <div style={{fontSize:11.5,color:"var(--mu)",lineHeight:1.5}}>{ins.detail}</div>
+                <div style={{fontSize:11.5,color:"var(--tx2)",lineHeight:1.5}}>{ins.detail}</div>
               </div>
             </div>
           ))}
         </div>
       )}
       {!aiInsights && !loading && (
-        <div style={{fontSize:11.5,color:"var(--mu)",marginTop:6}}>Get personalized spending advice powered by AI.</div>
+        <div style={{fontSize:11.5,color:"var(--tx2)",marginTop:6}}>Get personalized spending advice powered by AI.</div>
       )}
     </div>
   );
 }
 
+/* ── Recurring Expenses Setup Form ── */
+function RecurringForm({ onSubmit, initial }) {
+  const [name, setName] = useState(initial?.name || "");
+  const [amount, setAmount] = useState(initial?.amount || "");
+  const [category, setCategory] = useState(initial?.category || "housing");
+  const [dayOfMonth, setDayOfMonth] = useState(initial?.dayOfMonth || 1);
+
+  const go = () => {
+    if (!name || !amount) return;
+    onSubmit({ id: initial?.id || uid(), name, amount: parseFloat(amount), category, dayOfMonth: parseInt(dayOfMonth) });
+  };
+
+  return (
+    <div>
+      <label style={lbl}>Expense Name</label>
+      <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Mortgage, Netflix" style={{...inp, marginBottom:10}} autoFocus/>
+      <label style={lbl}>Monthly Amount</label>
+      <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" style={{...inp, marginBottom:10}}/>
+      <label style={lbl}>Category</label>
+      <select value={category} onChange={e => setCategory(e.target.value)} style={{...inp, marginBottom:10, appearance:"none", cursor:"pointer"}}>
+        {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+      </select>
+      <label style={lbl}>Day of Month (for tracking)</label>
+      <input type="number" min="1" max="31" value={dayOfMonth} onChange={e => setDayOfMonth(e.target.value)} style={{...inp, marginBottom:16}}/>
+      <button onClick={go} style={pBtn}>{initial ? "Save Changes" : "Add Recurring Expense"}</button>
+    </div>
+  );
+}
+
+/* ── Savings Config Form ── */
+function SavingsConfigForm({ config, onSave, goals }) {
+  const [amountPerPaycheck, setAmountPerPaycheck] = useState(config?.amountPerPaycheck || "");
+  const [splitMode, setSplitMode] = useState(config?.splitMode || "even"); // even | manual
+  const [splits, setSplits] = useState(config?.splits || {});
+
+  const go = () => {
+    onSave({ amountPerPaycheck: parseFloat(amountPerPaycheck) || 0, splitMode, splits });
+  };
+
+  const totalSplit = Object.values(splits).reduce((s,v)=>s+(parseFloat(v)||0),0);
+
+  return (
+    <div>
+      <label style={lbl}>Amount Per Paycheck (bi-weekly)</label>
+      <input type="number" step="0.01" value={amountPerPaycheck} onChange={e=>setAmountPerPaycheck(e.target.value)} placeholder="0.00" style={{...inp, marginBottom:10}} autoFocus/>
+      <label style={lbl}>Split Between Goals</label>
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
+        {["even","manual"].map(m => (
+          <button key={m} onClick={() => setSplitMode(m)} style={{
+            flex:1, padding:"7px 0", borderRadius:8, border:"1px solid",
+            borderColor: splitMode===m ? "var(--ac)" : "var(--bd)",
+            background: splitMode===m ? "#6aadcf18" : "transparent",
+            color: splitMode===m ? "var(--ac)" : "var(--mu)",
+            fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"inherit", textTransform:"capitalize"
+          }}>{m === "even" ? "Split Evenly" : "Custom Split"}</button>
+        ))}
+      </div>
+      {splitMode === "manual" && goals.length > 0 && (
+        <div style={{marginBottom:12}}>
+          {goals.map(g => (
+            <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+              <div style={{flex:1,fontSize:12,color:"var(--tx)"}}>{g.name}</div>
+              <input type="number" step="0.01" value={splits[g.id]||""} onChange={e=>setSplits({...splits,[g.id]:e.target.value})}
+                placeholder="%" style={{...inp,width:80,padding:"5px 8px",fontSize:12}}/>
+              <span style={{fontSize:11,color:"var(--tx2)"}}>%</span>
+            </div>
+          ))}
+          {totalSplit !== 100 && totalSplit > 0 && <div style={{fontSize:11,color:"var(--wn)"}}>Total: {totalSplit.toFixed(0)}% (should equal 100%)</div>}
+        </div>
+      )}
+      {goals.length === 0 && <div style={{fontSize:11.5,color:"var(--mu)",marginBottom:12}}>Add goals first to split savings between them.</div>}
+      <button onClick={go} style={pBtn}>Save Savings Config</button>
+    </div>
+  );
+}
+
+/* ── Bonus Income Form ── */
+function BonusForm({ onSubmit }) {
+  const [amount, setAmount] = useState("");
+  const [desc, setDesc] = useState("");
+  const [date, setDate] = useState(todayStr());
+  const [applyToGoal, setApplyToGoal] = useState(false);
+
+  const go = () => {
+    if (!amount || isNaN(parseFloat(amount))) return;
+    onSubmit({ id: uid(), type:"income", amount: parseFloat(amount), description: desc || "Bonus / One-time income", date, category:"other", isBonus: true, applyToGoal });
+  };
+
+  return (
+    <div>
+      <p style={{margin:"0 0 14px",fontSize:12,color:"var(--tx2)",lineHeight:1.6}}>
+        Record one-time income like cube recovery, gifts, side hustles, etc. This gets added to your working money.
+      </p>
+      <label style={lbl}>Amount</label>
+      <input type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" style={{...inp,marginBottom:10}} autoFocus/>
+      <label style={lbl}>Description</label>
+      <input type="text" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g., Cube competition winnings, Birthday gift" style={{...inp,marginBottom:10}}/>
+      <label style={lbl}>Date Received</label>
+      <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp,marginBottom:16}}/>
+      <button onClick={go} style={pBtn}>Add Bonus Income</button>
+    </div>
+  );
+}
+
+/* ── Working Money Summary Card ── */
+function WorkingMoneyCard({ income, recurringExpenses, savingsConfig, mTxns, vMonth, vYear, goals, onEditSavings, onAddBonus }) {
+  const totalRecurring = recurringExpenses.reduce((s, e) => s + e.amount, 0);
+
+  // Monthly savings = 2 paychecks/month × per-paycheck amount
+  const monthlySavings = (savingsConfig?.amountPerPaycheck || 0) * 2;
+
+  // Bonus income this month
+  const bonusIncome = mTxns.filter(t => t.isBonus && t.type === "income").reduce((s,t) => s + t.amount, 0);
+
+  // Discretionary (working money) = income - recurring - savings + bonus
+  const workingMoney = income - totalRecurring - monthlySavings + bonusIncome;
+
+  // Discretionary spent (non-recurring expenses)
+  const discretionarySpent = mTxns.filter(t => t.type === "expense" && !t.isRecurring).reduce((s,t) => s + t.amount, 0);
+  const workingLeft = workingMoney - discretionarySpent;
+
+  const pct = workingMoney > 0 ? Math.min((discretionarySpent / workingMoney) * 100, 100) : 0;
+
+  return (
+    <div style={{background:"var(--s1)",borderRadius:16,padding:"20px 22px",marginBottom:16,border:"1px solid var(--bd)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}}>Working Money</div>
+          <div style={{fontSize:28,fontWeight:700,fontFamily:"var(--fd)",color:workingLeft < 0 ? "var(--dg)" : "var(--sc)",letterSpacing:"-0.02em"}}>
+            {fmt(workingLeft)}
+          </div>
+          <div style={{fontSize:11,color:"var(--tx2)",marginTop:3}}>remaining this month</div>
+        </div>
+        <div style={{textAlign:"right",display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
+          <button onClick={onAddBonus} style={{...chip,background:"#c9b45518",color:"var(--wn)",fontSize:11,padding:"5px 10px",border:"1px solid #c9b45530"}}>
+            + Bonus Income
+          </button>
+          <button onClick={onEditSavings} style={{...chip,background:"#4dbba818",color:"var(--sc)",fontSize:11,padding:"5px 10px",border:"1px solid #4dbba830"}}>
+            ▲ Savings Setup
+          </button>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{background:"var(--s0)",borderRadius:6,height:8,overflow:"hidden",marginBottom:12}}>
+        <div style={{height:"100%",borderRadius:6,width:`${pct}%`,
+          background: pct > 90 ? "linear-gradient(90deg,var(--dg),#c45)" : pct > 70 ? "linear-gradient(90deg,var(--wn),var(--ac))" : "linear-gradient(90deg,var(--sc),#6bc99b)",
+          transition:"width 0.8s ease"}}/>
+      </div>
+
+      {/* Breakdown rows */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:11.5}}>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
+          <span style={{color:"var(--tx2)"}}>Total Income</span>
+          <span style={{fontWeight:600,color:"var(--sc)",fontFamily:"var(--fd)"}}>{fmt(income)}</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
+          <span style={{color:"var(--tx2)"}}>Recurring Bills</span>
+          <span style={{fontWeight:600,color:"var(--dg)",fontFamily:"var(--fd)"}}>{fmt(totalRecurring)}</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
+          <span style={{color:"var(--tx2)"}}>Monthly Savings</span>
+          <span style={{fontWeight:600,color:"var(--ac)",fontFamily:"var(--fd)"}}>{fmt(monthlySavings)}</span>
+        </div>
+        {bonusIncome > 0 && (
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
+            <span style={{color:"var(--wn)"}}>+ Bonus Income</span>
+            <span style={{fontWeight:600,color:"var(--wn)",fontFamily:"var(--fd)"}}>{fmt(bonusIncome)}</span>
+          </div>
+        )}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
+          <span style={{color:"var(--tx2)"}}>Working Budget</span>
+          <span style={{fontWeight:600,color:"var(--tx)",fontFamily:"var(--fd)"}}>{fmt(workingMoney)}</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
+          <span style={{color:"var(--tx2)"}}>Discretionary Spent</span>
+          <span style={{fontWeight:600,color:"var(--tx)",fontFamily:"var(--fd)"}}>{fmt(discretionarySpent)}</span>
+        </div>
+      </div>
+
+      {/* Savings goal allocation */}
+      {goals.length > 0 && monthlySavings > 0 && (
+        <div style={{marginTop:12,padding:"10px 12px",background:"var(--s0)",borderRadius:9}}>
+          <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7}}>Savings Allocation This Month</div>
+          {goals.map((g, i) => {
+            let alloc = 0;
+            if (savingsConfig?.splitMode === "manual" && savingsConfig.splits?.[g.id]) {
+              alloc = monthlySavings * (parseFloat(savingsConfig.splits[g.id]) / 100);
+            } else {
+              alloc = monthlySavings / goals.length;
+            }
+            return (
+              <div key={g.id} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,marginBottom:i<goals.length-1?4:0}}>
+                <span style={{color:"var(--tx2)"}}>{g.name}</span>
+                <span style={{fontWeight:600,color:"var(--sc)",fontFamily:"var(--fd)"}}>{fmt(alloc)}/mo</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Custom Tooltip ── */
+function CustomTooltip({ active, payload, label, labelFormatter }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div style={{background:"#2e3448",border:"1px solid #5a6278",borderRadius:9,padding:"10px 14px",fontSize:12,color:"#dde1ed",boxShadow:"0 4px 20px rgba(0,0,0,0.4)"}}>
+      <div style={{marginBottom:5,fontWeight:600,color:"#b4b9cc",fontSize:11}}>{labelFormatter ? labelFormatter(label) : label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:i<payload.length-1?3:0}}>
+          <div style={{width:7,height:7,borderRadius:2,background:p.color||p.fill,flexShrink:0}}/>
+          <span style={{color:"#b4b9cc",fontSize:11}}>{p.name}:</span>
+          <span style={{fontWeight:700,color:"#dde1ed"}}>{fmt(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── MAIN ──
 export default function App() {
+  const [unlocked, setUnlocked] = useState(false);
   const [txns,setTxns]=useState([]);
   const [goals,setGoals]=useState([]);
   const [budget,setBudget]=useState(4000);
   const [income,setIncome]=useState(5500);
   const [catBudgets,setCatBudgets]=useState({});
+  const [recurringExpenses, setRecurringExpenses] = useState([]);
+  const [savingsConfig, setSavingsConfig] = useState({ amountPerPaycheck: 0, splitMode: "even", splits: {} });
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("dashboard");
   const [showAdd,setShowAdd]=useState(false);
   const [showGoal,setShowGoal]=useState(false);
   const [showImport,setShowImport]=useState(false);
+  const [showRecurring, setShowRecurring] = useState(false);
+  const [showSavings, setShowSavings] = useState(false);
+  const [showBonus, setShowBonus] = useState(false);
+  const [editRecurring, setEditRecurring] = useState(null);
   const [editG,setEditG]=useState(null);
   const [selCat,setSelCat]=useState(null);
   const [vMonth,setVMonth]=useState(currentMonth);
   const [vYear,setVYear]=useState(currentYear);
+  const [txnSort, setTxnSort] = useState("date"); // date | amount | alpha
   const fRef=useRef();
 
-  useEffect(()=>{(async()=>{
-    const[t,g,b,i,cb]=await Promise.all([load("bt",[]),load("bg",[]),load("bb",4000),load("bi",5500),load("bcb",{})]);
-    setTxns(t);setGoals(g);setBudget(b);setIncome(i);setCatBudgets(cb);setLoading(false);
-  })();},[]);
+  // Check session unlock
+  useEffect(() => {
+    const sess = sessionStorage.getItem("bd_unlocked");
+    if (sess === "1") setUnlocked(true);
+  }, []);
+
+  const handleUnlock = () => {
+    sessionStorage.setItem("bd_unlocked", "1");
+    setUnlocked(true);
+  };
+
+  useEffect(()=>{
+    if (!unlocked) return;
+    (async()=>{
+      const[t,g,b,i,cb,re,sc]=await Promise.all([
+        load("bt",[]),load("bg",[]),load("bb",4000),load("bi",5500),load("bcb",{}),
+        load("bre",[]),load("bsc",{amountPerPaycheck:0,splitMode:"even",splits:{}})
+      ]);
+      setTxns(t);setGoals(g);setBudget(b);setIncome(i);setCatBudgets(cb);
+      setRecurringExpenses(re);setSavingsConfig(sc);
+      setLoading(false);
+    })();
+  },[unlocked]);
 
   const uTxns=v=>{setTxns(v);save("bt",v);};
   const uGoals=v=>{setGoals(v);save("bg",v);};
@@ -500,8 +820,28 @@ export default function App() {
   const uIncome=v=>{setIncome(v);save("bi",v);};
   const uCatBudgets=v=>{setCatBudgets(v);save("bcb",v);};
   const setCatBudget=(id,val)=>uCatBudgets({...catBudgets,[id]:val});
+  const uRecurring=v=>{setRecurringExpenses(v);save("bre",v);};
+  const uSavingsConfig=v=>{setSavingsConfig(v);save("bsc",v);};
 
-  const mTxns=useMemo(()=>txns.filter(t=>getMonth(t.date)===vMonth&&getYear(t.date)===vYear),[txns,vMonth,vYear]);
+  // Generate virtual recurring txns for the viewed month (not stored, computed)
+  const recurringTxnsForMonth = useMemo(() => {
+    return recurringExpenses.map(re => ({
+      id: `rec_${re.id}_${vYear}_${vMonth}`,
+      type: "expense",
+      amount: re.amount,
+      category: re.category,
+      description: re.name,
+      date: `${vYear}-${String(vMonth+1).padStart(2,"0")}-${String(Math.min(re.dayOfMonth, new Date(vYear,vMonth+1,0).getDate())).padStart(2,"0")}`,
+      isRecurring: true,
+    }));
+  }, [recurringExpenses, vMonth, vYear]);
+
+  // All txns for the month (real + virtual recurring)
+  const mTxns = useMemo(() => {
+    const real = txns.filter(t => getMonth(t.date)===vMonth && getYear(t.date)===vYear);
+    return [...real, ...recurringTxnsForMonth];
+  }, [txns, recurringTxnsForMonth, vMonth, vYear]);
+
   const spent=useMemo(()=>mTxns.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0),[mTxns]);
   const rem=budget-spent;
   const pct=budget>0?Math.min((spent/budget)*100,100):0;
@@ -511,14 +851,12 @@ export default function App() {
     return CATEGORIES.map(c=>({...c,value:m[c.id]||0})).filter(c=>c.value>0);
   },[mTxns]);
 
-  // Per-category spent map
   const catSpentMap=useMemo(()=>{
     const m={};
     mTxns.filter(t=>t.type==="expense").forEach(t=>{m[t.category]=(m[t.category]||0)+t.amount;});
     return m;
   },[mTxns]);
 
-  // Previous month per-category
   const prevCatSpentMap=useMemo(()=>{
     let pm=vMonth-1,py=vYear;
     if(pm<0){pm=11;py--;}
@@ -530,11 +868,14 @@ export default function App() {
 
   const trendData=useMemo(()=>{
     const ms=[];
-    for(let i=5;i>=0;i--){let m=currentMonth-i,y=currentYear;if(m<0){m+=12;y--;}
-    const mt=txns.filter(t=>getMonth(t.date)===m&&getYear(t.date)===y);
-    ms.push({month:MONTHS[m],spent:mt.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0),budget});}
+    for(let i=5;i>=0;i--){
+      let m=currentMonth-i,y=currentYear;if(m<0){m+=12;y--;}
+      const mt=txns.filter(t=>getMonth(t.date)===m&&getYear(t.date)===y);
+      const recurringForM = recurringExpenses.reduce((s,e)=>s+e.amount,0);
+      ms.push({month:MONTHS[m],spent:mt.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0)+recurringForM,budget});
+    }
     return ms;
-  },[txns,budget]);
+  },[txns,budget,recurringExpenses]);
 
   const dailyData=useMemo(()=>{
     const dim=new Date(vYear,vMonth+1,0).getDate();const ds=[];let cum=0;
@@ -556,6 +897,26 @@ export default function App() {
   const updGoalCur=(id,v)=>uGoals(goals.map(g=>g.id===id?{...g,current:v}:g));
   const handleEditGoal=g=>{if(g._save){uGoals(goals.map(x=>x.id===g.id?{...x,target:g.target}:x));return;}setEditG(g);setShowGoal(true);};
 
+  // Auto-apply savings to goals when savings config saved
+  const handleSaveSavings = (cfg) => {
+    uSavingsConfig(cfg);
+    // Update goal current values based on monthly savings allocation
+    const monthlySavings = (cfg.amountPerPaycheck || 0) * 2;
+    if (monthlySavings > 0 && goals.length > 0) {
+      const updated = goals.map((g, i) => {
+        let alloc = 0;
+        if (cfg.splitMode === "manual" && cfg.splits?.[g.id]) {
+          alloc = monthlySavings * (parseFloat(cfg.splits[g.id]) / 100);
+        } else {
+          alloc = monthlySavings / goals.length;
+        }
+        return { ...g, current: (g.current || 0) + alloc };
+      });
+      uGoals(updated);
+    }
+    setShowSavings(false);
+  };
+
   const handleCSV=e=>{
     const file=e.target.files?.[0];if(!file)return;
     const r=new FileReader();
@@ -573,13 +934,21 @@ export default function App() {
   const prevM=()=>{if(vMonth===0){setVMonth(11);setVYear(vYear-1);}else setVMonth(vMonth-1);};
   const nextM=()=>{if(vMonth===11){setVMonth(0);setVYear(vYear+1);}else setVMonth(vMonth+1);};
 
-  const fTxns=selCat?mTxns.filter(t=>t.category===selCat):mTxns;
+  // Sorted + filtered transactions
+  const fTxns = useMemo(() => {
+    let list = selCat ? mTxns.filter(t=>t.category===selCat) : mTxns;
+    if (txnSort === "date") list = [...list].sort((a,b)=>b.date.localeCompare(a.date));
+    else if (txnSort === "amount") list = [...list].sort((a,b)=>b.amount-a.amount);
+    else if (txnSort === "alpha") list = [...list].sort((a,b)=>(a.description||"").localeCompare(b.description||""));
+    return list;
+  }, [mTxns, selCat, txnSort]);
 
-  // Breakdown summary stats
   const totalAllocated = CATEGORIES.reduce((s,c)=>s+(catBudgets[c.id]||0),0);
   const overBudgetCats = CATEGORIES.filter(c=>(catBudgets[c.id]||0)>0&&(catSpentMap[c.id]||0)>catBudgets[c.id]);
+  const totalRecurring = recurringExpenses.reduce((s,e)=>s+e.amount,0);
 
-  if(loading) return <div style={{...root,display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}><span style={{color:"var(--mu)",fontSize:13}}>Loading…</span></div>;
+  if (!unlocked) return <PasswordGate onUnlock={handleUnlock}/>;
+  if (loading) return <div style={{...root,display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}><span style={{color:"var(--mu)",fontSize:13}}>Loading…</span></div>;
 
   return (
     <div style={root}>
@@ -595,6 +964,7 @@ export default function App() {
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
         @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
 
       {/* Top bar */}
@@ -604,8 +974,9 @@ export default function App() {
           <span style={{fontSize:16,fontWeight:700,color:"var(--tx)",fontFamily:"var(--fd)",minWidth:105,textAlign:"center",letterSpacing:"-0.02em"}}>{MONTHS[vMonth]} {vYear}</span>
           <button onClick={nextM} style={navB}>›</button>
         </div>
-        <div style={{display:"flex",gap:7}}>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
           <button onClick={()=>setShowImport(true)} style={{...chip,background:"var(--s1)"}}>⬆ Import</button>
+          <button onClick={()=>setShowBonus(true)} style={{...chip,background:"#c9b45520",color:"var(--wn)",border:"1px solid #c9b45530"}}>✦ Bonus</button>
           <button onClick={()=>setShowAdd(true)} style={{...chip,background:"var(--ac)",color:"#1a1f2e",fontWeight:600}}>+ Add</button>
         </div>
       </div>
@@ -624,16 +995,29 @@ export default function App() {
 
       {/* ═══ DASHBOARD ═══ */}
       {view==="dashboard"&&<>
+        {/* Working Money Card */}
+        <WorkingMoneyCard
+          income={income}
+          recurringExpenses={recurringExpenses}
+          savingsConfig={savingsConfig}
+          mTxns={mTxns}
+          vMonth={vMonth}
+          vYear={vYear}
+          goals={goals}
+          onEditSavings={()=>setShowSavings(true)}
+          onAddBonus={()=>setShowBonus(true)}
+        />
+
         {/* Stats */}
         <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-          <StatCard label="Budget" accent="var(--tx)"><EditableAmount value={budget} onChange={uBudget}/></StatCard>
+          <StatCard label="Total Budget" accent="var(--tx)"><EditableAmount value={budget} onChange={uBudget}/></StatCard>
           <StatCard label="Spent" sub={`${pct.toFixed(0)}% of budget`} accent={pct>90?"var(--dg)":"var(--ac)"}>{fmt(spent)}</StatCard>
           <StatCard label="Remaining" sub={rem<0?"Over budget":`${(100-pct).toFixed(0)}% left`} accent={rem<0?"var(--dg)":"var(--sc)"}>{fmt(rem)}</StatCard>
         </div>
 
         {/* Budget progress */}
         <div style={{background:"var(--s1)",borderRadius:11,padding:"13px 16px",marginBottom:14}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:7,fontSize:10.5,color:"var(--mu)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:7,fontSize:10.5,color:"var(--tx2)"}}>
             <span>Monthly progress</span><span>{fmt(spent)} / {fmt(budget)}</span>
           </div>
           <div style={{background:"var(--s0)",borderRadius:6,height:9,overflow:"hidden"}}>
@@ -641,13 +1025,22 @@ export default function App() {
               background:pct>90?"linear-gradient(90deg,var(--dg),#c45)":pct>70?"linear-gradient(90deg,var(--wn),var(--ac))":"linear-gradient(90deg,var(--ac),var(--ac2))",
               transition:"width 0.8s ease"}}/>
           </div>
+          {totalRecurring > 0 && (
+            <div style={{fontSize:10.5,color:"var(--tx2)",marginTop:6}}>
+              Includes {fmt(totalRecurring)} in recurring bills across {recurringExpenses.length} item{recurringExpenses.length!==1?"s":""} ·
+              <button onClick={()=>setView("settings")} style={{...tiny,color:"var(--ac)",marginLeft:4}}>manage</button>
+            </div>
+          )}
         </div>
 
         {/* Goals */}
         <div style={{marginBottom:18}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <h3 style={sec}>Goals</h3>
-            <button onClick={()=>{setEditG(null);setShowGoal(true);}} style={{...chip,background:"var(--s1)",fontSize:11.5,padding:"5px 12px"}}>+ New Goal</button>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>setShowSavings(true)} style={{...chip,background:"#4dbba818",color:"var(--sc)",fontSize:11,padding:"5px 11px",border:"1px solid #4dbba830"}}>▲ Savings</button>
+              <button onClick={()=>{setEditG(null);setShowGoal(true);}} style={{...chip,background:"var(--s1)",fontSize:11.5,padding:"5px 12px"}}>+ New</button>
+            </div>
           </div>
           {goals.length===0?(
             <div style={{color:"var(--mu)",fontSize:12.5,textAlign:"center",padding:26,background:"var(--s1)",borderRadius:12}}>
@@ -669,20 +1062,20 @@ export default function App() {
             <div style={{marginTop:8}}><CatLegend data={catData} onSelect={setSelCat} selected={selCat}/></div>
           </div>
           <div style={{background:"var(--s1)",borderRadius:13,padding:16}}>
-            <h3 style={sec}>Spending Paces</h3>
+            <h3 style={sec}>Spending Pace</h3>
             <ResponsiveContainer width="100%" height={190}>
               <AreaChart data={dailyData} margin={{top:5,right:6,left:0,bottom:0}}>
                 <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#6aadcf" stopOpacity={0.22}/><stop offset="100%" stopColor="#6aadcf" stopOpacity={0}/>
                 </linearGradient></defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#3a415815"/>
-                <XAxis dataKey="day" tick={{fontSize:9.5,fill:"#6d7590"}} tickLine={false} axisLine={false} interval={4}/>
-                <YAxis tick={{fontSize:9.5,fill:"#6d7590"}} tickLine={false} axisLine={false} tickFormatter={fmtShort} width={40}/>
-                <Tooltip contentStyle={{background:"#2e3448",border:"1px solid #3a4158",borderRadius:8,fontSize:11.5,color:"#dde1ed"}} formatter={v=>[fmt(v),""]} labelFormatter={l=>`Day ${l}`}/>
+                <XAxis dataKey="day" tick={{fontSize:9.5,fill:"#b4b9cc"}} tickLine={false} axisLine={false} interval={4}/>
+                <YAxis tick={{fontSize:9.5,fill:"#b4b9cc"}} tickLine={false} axisLine={false} tickFormatter={fmtShort} width={40}/>
+                <Tooltip content={<CustomTooltip labelFormatter={l=>`Day ${l}`}/>}/>
                 <Area type="monotone" dataKey="cumulative" stroke="#6aadcf" strokeWidth={2} fill="url(#sg)" name="Cumulative"/>
               </AreaChart>
             </ResponsiveContainer>
-            <div style={{marginTop:5,display:"flex",justifyContent:"space-between",fontSize:9.5,color:"var(--mu)"}}>
+            <div style={{marginTop:5,display:"flex",justifyContent:"space-between",fontSize:9.5,color:"var(--tx2)"}}>
               <span>Pace: {fmt(budget/new Date(vYear,vMonth+1,0).getDate())}/day</span>
               <span>Avg: {fmt(spent/Math.max(dailyData.filter(d=>d.spent>0).length,1))}/day</span>
             </div>
@@ -695,9 +1088,9 @@ export default function App() {
           <ResponsiveContainer width="100%" height={150}>
             <BarChart data={trendData} margin={{top:5,right:6,left:0,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#3a415815"/>
-              <XAxis dataKey="month" tick={{fontSize:10,fill:"#6d7590"}} tickLine={false} axisLine={false}/>
-              <YAxis tick={{fontSize:9.5,fill:"#6d7590"}} tickLine={false} axisLine={false} tickFormatter={fmtShort} width={40}/>
-              <Tooltip contentStyle={{background:"#2e3448",border:"1px solid #3a4158",borderRadius:8,fontSize:11.5,color:"#dde1ed"}} formatter={v=>[fmt(v),""]}/>
+              <XAxis dataKey="month" tick={{fontSize:10,fill:"#b4b9cc"}} tickLine={false} axisLine={false}/>
+              <YAxis tick={{fontSize:9.5,fill:"#b4b9cc"}} tickLine={false} axisLine={false} tickFormatter={fmtShort} width={40}/>
+              <Tooltip content={<CustomTooltip/>}/>
               <Bar dataKey="spent" name="Spent" fill="#6aadcf" radius={[4,4,0,0]}/>
               <Bar dataKey="budget" name="Budget" fill="#3a4158" radius={[4,4,0,0]}/>
             </BarChart>
@@ -706,55 +1099,46 @@ export default function App() {
 
         {/* Recent txns */}
         <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
             <h3 style={{...sec,marginBottom:0}}>{selCat?CATEGORIES.find(c=>c.id===selCat)?.label:"Recent Transactions"}</h3>
-            {selCat&&<button onClick={()=>setSelCat(null)} style={{...chip,background:"var(--s1)",fontSize:10.5,padding:"3px 9px"}}>Clear</button>}
+            <div style={{display:"flex",gap:5,alignItems:"center"}}>
+              {selCat&&<button onClick={()=>setSelCat(null)} style={{...chip,background:"var(--s1)",fontSize:10.5,padding:"3px 9px"}}>Clear</button>}
+              <SortButtons sort={txnSort} onSort={setTxnSort}/>
+            </div>
           </div>
           {fTxns.length===0?(
             <div style={{color:"var(--mu)",fontSize:12.5,textAlign:"center",padding:26,background:"var(--s1)",borderRadius:11}}>
               No transactions.&nbsp;<button onClick={()=>setShowAdd(true)} style={{color:"var(--ac)",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,fontWeight:600}}>Add one</button>
             </div>
-          ):fTxns.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).map(t=><TxnRow key={t.id} txn={t} onDelete={delTxn}/>)}
+          ):fTxns.slice(0,8).map(t=><TxnRow key={t.id} txn={t} onDelete={delTxn}/>)}
           {fTxns.length>8&&<button onClick={()=>setView("transactions")} style={{...chip,width:"100%",background:"var(--s1)",marginTop:5,justifyContent:"center"}}>View all {fTxns.length} →</button>}
         </div>
       </>}
 
       {/* ═══ BREAKDOWN ═══ */}
       {view==="breakdown"&&<div>
-        {/* Summary stats */}
         <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap"}}>
           <StatCard label="Total Spent" sub={`${MONTHS[vMonth]} ${vYear}`} accent="var(--ac)">{fmt(spent)}</StatCard>
           <StatCard label="Cat. Budgets" sub={totalAllocated>0?`${((spent/totalAllocated)*100).toFixed(0)}% used`:"No budgets set"} accent="var(--tx)">{fmt(totalAllocated)}</StatCard>
           <StatCard label="Over Budget" sub={`${overBudgetCats.length} categor${overBudgetCats.length===1?"y":"ies"}`} accent={overBudgetCats.length>0?"var(--dg)":"var(--sc)"}>{overBudgetCats.length===0?"✓ None":overBudgetCats.length}</StatCard>
         </div>
 
-        {/* Smart insights */}
         <SmartInsights mTxns={mTxns} catBudgets={catBudgets} budget={budget} income={income} txns={txns} vMonth={vMonth} vYear={vYear}/>
-
-        {/* AI insights */}
         <AIInsightsPanel mTxns={mTxns} catBudgets={catBudgets} budget={budget} income={income} txns={txns} vMonth={vMonth} vYear={vYear}/>
 
-        {/* Category budget cards */}
         <h3 style={sec}>Category Budgets</h3>
-        <div style={{fontSize:11.5,color:"var(--mu)",marginBottom:12}}>
+        <div style={{fontSize:11.5,color:"var(--tx2)",marginBottom:12}}>
           {totalAllocated===0
-            ? "Set a budget for each category to track overspending. Click \"+ set budget\" on any category."
-            : `${fmt(totalAllocated)} allocated across categories · click any amount to edit`}
+            ? "Set a budget for each category. Click \"+ set budget\" on any category."
+            : `${fmt(totalAllocated)} allocated · click any amount to edit`}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
           {CATEGORIES.filter(c=>c.id!=="savings").map(cat=>(
-            <CatBudgetCard
-              key={cat.id}
-              cat={cat}
-              spent={catSpentMap[cat.id]||0}
-              budget={catBudgets[cat.id]||0}
-              onSetBudget={v=>setCatBudget(cat.id,v)}
-              prevSpent={prevCatSpentMap[cat.id]||0}
-            />
+            <CatBudgetCard key={cat.id} cat={cat} spent={catSpentMap[cat.id]||0}
+              budget={catBudgets[cat.id]||0} onSetBudget={v=>setCatBudget(cat.id,v)} prevSpent={prevCatSpentMap[cat.id]||0}/>
           ))}
         </div>
 
-        {/* Reset budgets */}
         {totalAllocated>0&&(
           <button onClick={()=>{if(confirm("Clear all category budgets?"))uCatBudgets({});}}
             style={{...chip,background:"transparent",color:"var(--mu)",border:"1px solid var(--bd)",marginTop:16,fontSize:11.5}}>
@@ -767,7 +1151,10 @@ export default function App() {
       {view==="transactions"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:6}}>
           <h3 style={{...sec,marginBottom:0}}>Transactions · {MONTHS[vMonth]}</h3>
-          <span style={{fontSize:11.5,color:"var(--mu)"}}>{mTxns.length} items · {fmt(spent)}</span>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <span style={{fontSize:11.5,color:"var(--tx2)"}}>{mTxns.length} items · {fmt(spent)}</span>
+            <SortButtons sort={txnSort} onSort={setTxnSort}/>
+          </div>
         </div>
         <div style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}>
           <button onClick={()=>setSelCat(null)} style={{...fChip,background:!selCat?"var(--ac)22":"var(--s1)",color:!selCat?"var(--ac)":"var(--mu)"}}>All</button>
@@ -776,41 +1163,110 @@ export default function App() {
               style={{...fChip,background:selCat===c.id?c.color+"20":"var(--s1)",color:selCat===c.id?c.color:"var(--mu)"}}>{c.icon} {c.label}</button>
           ))}
         </div>
-        {fTxns.sort((a,b)=>b.date.localeCompare(a.date)).map(t=><TxnRow key={t.id} txn={t} onDelete={delTxn}/>)}
+        {fTxns.map(t=><TxnRow key={t.id} txn={t} onDelete={delTxn}/>)}
         {!fTxns.length&&<div style={{color:"var(--mu)",fontSize:13,textAlign:"center",padding:32}}>No transactions.</div>}
       </div>}
 
       {/* ═══ SETTINGS ═══ */}
-      {view==="settings"&&<div style={{maxWidth:380}}>
-        <h3 style={sec}>Settings</h3>
+      {view==="settings"&&<div style={{maxWidth:500}}>
+        <h3 style={sec}>Income & Budget</h3>
         <div style={{background:"var(--s1)",borderRadius:11,padding:16,marginBottom:12}}>
           <label style={lbl}>Monthly Budget</label>
           <input type="number" value={budget} onChange={e=>uBudget(Number(e.target.value))} style={{...inp,marginBottom:12}}/>
-          <label style={lbl}>Monthly Income</label>
+          <label style={lbl}>Monthly Income (total, all sources)</label>
           <input type="number" value={income} onChange={e=>uIncome(Number(e.target.value))} style={inp}/>
         </div>
+
+        {/* Recurring Expenses */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <h3 style={{...sec,marginBottom:0}}>Recurring Expenses</h3>
+          <button onClick={()=>{setEditRecurring(null);setShowRecurring(true);}} style={{...chip,background:"var(--s1)",fontSize:11.5,padding:"5px 12px"}}>+ Add</button>
+        </div>
+        <div style={{background:"var(--s1)",borderRadius:11,padding:recurringExpenses.length?12:16,marginBottom:12}}>
+          {recurringExpenses.length === 0 ? (
+            <div style={{textAlign:"center",color:"var(--mu)",fontSize:12.5,padding:"8px 0"}}>
+              No recurring expenses yet. Add your mortgage, subscriptions, etc.
+            </div>
+          ) : (
+            <>
+              {recurringExpenses.map(re => {
+                const cat = CATEGORIES.find(c=>c.id===re.category)||CATEGORIES.at(-1);
+                return (
+                  <div key={re.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 4px",borderBottom:"1px solid var(--bd)"}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:cat.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:cat.color,flexShrink:0}}>{cat.icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12.5,fontWeight:600,color:"var(--tx)"}}>{re.name}</div>
+                      <div style={{fontSize:10.5,color:"var(--tx2)"}}>{cat.label} · day {re.dayOfMonth}</div>
+                    </div>
+                    <div style={{fontSize:13,fontWeight:700,fontFamily:"var(--fd)",color:"var(--dg)"}}>{fmt(re.amount)}</div>
+                    <button onClick={()=>{setEditRecurring(re);setShowRecurring(true);}} style={tiny}>edit</button>
+                    <button onClick={()=>uRecurring(recurringExpenses.filter(r=>r.id!==re.id))} style={{...tiny,color:"var(--dg)"}}>×</button>
+                  </div>
+                );
+              })}
+              <div style={{display:"flex",justifyContent:"space-between",padding:"9px 4px 2px",fontSize:12,color:"var(--tx2)"}}>
+                <span>Total monthly recurring</span>
+                <span style={{fontWeight:700,fontFamily:"var(--fd)",color:"var(--dg)"}}>{fmt(totalRecurring)}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Savings Config */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <h3 style={{...sec,marginBottom:0}}>Savings Auto-Allocation</h3>
+          <button onClick={()=>setShowSavings(true)} style={{...chip,background:"#4dbba818",color:"var(--sc)",fontSize:11,padding:"5px 11px",border:"1px solid #4dbba830"}}>Configure</button>
+        </div>
+        <div style={{background:"var(--s1)",borderRadius:11,padding:14,marginBottom:12}}>
+          {savingsConfig.amountPerPaycheck > 0 ? (
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12.5}}>
+                <span style={{color:"var(--tx2)"}}>Per paycheck</span>
+                <span style={{fontWeight:700,color:"var(--sc)",fontFamily:"var(--fd)"}}>{fmt(savingsConfig.amountPerPaycheck)}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12.5}}>
+                <span style={{color:"var(--tx2)"}}>Monthly total (2× paychecks)</span>
+                <span style={{fontWeight:700,color:"var(--sc)",fontFamily:"var(--fd)"}}>{fmt(savingsConfig.amountPerPaycheck*2)}</span>
+              </div>
+              <div style={{fontSize:11,color:"var(--mu)"}}>Split mode: {savingsConfig.splitMode === "even" ? "Even split between goals" : "Custom percentages"}</div>
+            </div>
+          ) : (
+            <div style={{textAlign:"center",color:"var(--mu)",fontSize:12.5}}>
+              Configure how much you auto-save each paycheck and how it splits between your goals.
+            </div>
+          )}
+        </div>
+
         <h3 style={sec}>Data</h3>
-        <div style={{background:"var(--s1)",borderRadius:11,padding:16}}>
+        <div style={{background:"var(--s1)",borderRadius:11,padding:16,marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--tx)",marginBottom:8}}>
             <span>Transactions</span><span style={{fontWeight:600,fontFamily:"var(--fd)"}}>{txns.length}</span>
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--tx)",marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--tx)",marginBottom:8}}>
             <span>Goals</span><span style={{fontWeight:600,fontFamily:"var(--fd)"}}>{goals.length}</span>
           </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--tx)",marginBottom:12}}>
+            <span>Recurring Expenses</span><span style={{fontWeight:600,fontFamily:"var(--fd)"}}>{recurringExpenses.length}</span>
+          </div>
           <button onClick={()=>setShowImport(true)} style={{...chip,width:"100%",background:"var(--s0)",justifyContent:"center",marginBottom:7}}>⬆ Import Chase CSV</button>
-          <button onClick={()=>{if(confirm("Clear ALL data?")){uTxns([]);uGoals([]);uCatBudgets({});}}} style={{...chip,width:"100%",background:"transparent",color:"var(--dg)",justifyContent:"center",border:"1px solid #d47a7a33"}}>Clear All Data</button>
+          <button onClick={()=>{if(confirm("Clear ALL transaction and goal data?")){uTxns([]);uGoals([]);uCatBudgets({});}}}
+            style={{...chip,width:"100%",background:"transparent",color:"var(--dg)",justifyContent:"center",border:"1px solid #d47a7a33"}}>Clear All Data</button>
         </div>
+
         <div style={{marginTop:14,padding:13,background:"var(--s1)",borderRadius:11}}>
           <h4 style={{margin:"0 0 6px",fontSize:11.5,fontWeight:600,color:"var(--tx)"}}>Importing from Chase</h4>
-          <ol style={{margin:0,paddingLeft:15,fontSize:11.5,color:"var(--mu)",lineHeight:1.9}}>
+          <ol style={{margin:0,paddingLeft:15,fontSize:11.5,color:"var(--tx2)",lineHeight:1.9}}>
             <li>Log into chase.com</li>
             <li>Account → Activity → Download</li>
             <li>Select date range, CSV format</li>
             <li>Upload the file here</li>
           </ol>
-          <div style={{marginTop:8,fontSize:11,color:"var(--mu)",lineHeight:1.6}}>
-            Chase credit card CSVs include a Category column — transactions will be auto-sorted into your spending categories.
-          </div>
+        </div>
+
+        <div style={{marginTop:10,padding:"10px 13px",background:"var(--s1)",borderRadius:11,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:12,color:"var(--mu)"}}>Session active</span>
+          <button onClick={()=>{sessionStorage.removeItem("bd_unlocked");setUnlocked(false);}}
+            style={{...tiny,color:"var(--dg)",fontSize:11.5}}>Lock dashboard</button>
         </div>
       </div>}
 
@@ -822,10 +1278,43 @@ export default function App() {
         <AddGoalForm onSubmit={saveGoalFn} initial={editG}/>
       </Modal>
       <Modal open={showImport} onClose={()=>setShowImport(false)} title="Import Chase CSV">
-        <p style={{fontSize:12.5,color:"var(--mu)",margin:"0 0 12px",lineHeight:1.6}}>Upload a CSV from Chase. Auto-categorized, duplicates skipped.</p>
+        <p style={{fontSize:12.5,color:"var(--tx2)",margin:"0 0 12px",lineHeight:1.6}}>Upload a CSV from Chase. Auto-categorized, duplicates skipped.</p>
         <input ref={fRef} type="file" accept=".csv" onChange={handleCSV} style={{display:"none"}}/>
         <button onClick={()=>fRef.current?.click()} style={pBtn}>Choose CSV File</button>
       </Modal>
+      <Modal open={showRecurring} onClose={()=>{setShowRecurring(false);setEditRecurring(null);}} title={editRecurring?"Edit Recurring Expense":"Add Recurring Expense"}>
+        <RecurringForm
+          initial={editRecurring}
+          onSubmit={r => {
+            if (editRecurring) uRecurring(recurringExpenses.map(x=>x.id===r.id?r:x));
+            else uRecurring([...recurringExpenses, r]);
+            setShowRecurring(false); setEditRecurring(null);
+          }}
+        />
+      </Modal>
+      <Modal open={showSavings} onClose={()=>setShowSavings(false)} title="Savings Auto-Allocation">
+        <SavingsConfigForm config={savingsConfig} onSave={handleSaveSavings} goals={goals}/>
+      </Modal>
+      <Modal open={showBonus} onClose={()=>setShowBonus(false)} title="Add Bonus / One-time Income">
+        <BonusForm onSubmit={t=>{uTxns([t,...txns]);setShowBonus(false);}}/>
+      </Modal>
+    </div>
+  );
+}
+
+/* ── Sort Buttons ── */
+function SortButtons({ sort, onSort }) {
+  return (
+    <div style={{display:"flex",gap:3,background:"var(--s1)",borderRadius:7,padding:3}}>
+      {[["date","Date"],["amount","$"],["alpha","A-Z"]].map(([k,l])=>(
+        <button key={k} onClick={()=>onSort(k)} style={{
+          padding:"3px 8px",borderRadius:5,border:"none",
+          background:sort===k?"var(--s2)":"transparent",
+          color:sort===k?"var(--ac)":"var(--mu)",
+          fontSize:10.5,fontWeight:sort===k?600:400,cursor:"pointer",fontFamily:"inherit",
+          transition:"all 0.12s"
+        }}>{l}</button>
+      ))}
     </div>
   );
 }
